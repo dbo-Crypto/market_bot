@@ -8,8 +8,14 @@ This is a **separate** desk from `prediction_bot`. Same machine is fine: this on
 
 | Service | Host port |
 |---|---|
-| UI | 3001 |
+| UI | 3002 (3001 is taken by ProtectYourDoc Uptime Kuma) |
 | API / WebSocket | 8002 |
+
+On this OVH box, start with the lean file so `next dev` does not eat RAM:
+
+```bash
+docker compose -f docker-compose.vps.yml up -d --build
+```
 
 ## 1. Server once
 
