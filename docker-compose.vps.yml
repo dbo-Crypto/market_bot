@@ -57,7 +57,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://bot:bot@postgres:5432/market_bot
       REDIS_URL: redis://redis:6379/0
     ports:
-      - "8002:8000"
+      - "127.0.0.1:8002:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,6 +98,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8002}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8002/ws}
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
+        NEXT_PUBLIC_DESK_TOKEN: ${DESK_TOKEN:-}
     restart: unless-stopped
     mem_limit: 256m
     cpus: 0.40
@@ -108,8 +110,10 @@ services:
       PORT: "3000"
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8002}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8002/ws}
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
+      NEXT_PUBLIC_DESK_TOKEN: ${DESK_TOKEN:-}
     ports:
-      - "3002:3000"
+      - "127.0.0.1:3002:3000"
     depends_on:
       - api
     logging:

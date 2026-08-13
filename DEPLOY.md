@@ -8,8 +8,8 @@ This is a **separate** desk from `prediction_bot`. Same machine is fine: this on
 
 | Service | Host port |
 |---|---|
-| UI | 3002 (3001 is taken by ProtectYourDoc Uptime Kuma) |
-| API / WebSocket | 8002 |
+| UI | https://vps-43564666.vps.ovh.net/market/ (basic auth) |
+| API | loopback 127.0.0.1:8002, proxied at /market/api/ |
 
 On this OVH box, start with the lean file so `next dev` does not eat RAM:
 

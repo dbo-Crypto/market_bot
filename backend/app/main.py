@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.bus import CHANNEL, get_redis, init_redis
 from app.config import Settings, get_settings
+from app.desk_auth import accept_desk_ws, desk_http_guard
 from app.db import get_session, init_db, init_engine, seed_instruments
 from app.models import Account, Decision, EquityPoint, Fill, Instrument, Position, Setting
 from app.services import (
@@ -54,6 +55,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _desk_guard(request: Request, call_next):
+    return await desk_http_guard(request, call_next, settings.desk_token)
 
 
 @app.get("/health")
@@ -233,7 +239,8 @@ async def patch_settings(body: SettingsPatch, session: AsyncSession = Depends(ge
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket) -> None:
-    await ws.accept()
+    if not await accept_desk_ws(ws, settings.desk_token):
+        return
     redis = get_redis()
     if redis is None:
         await ws.send_json({"type": "notice", "payload": {"message": "live bus offline; UI will poll"}})

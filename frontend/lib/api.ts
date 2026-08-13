@@ -1,12 +1,24 @@
 import type { Analysis, Blotter, Overview } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8002";
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8002/ws";
+export const DESK_TOKEN = process.env.NEXT_PUBLIC_DESK_TOKEN ?? "";
+
+function withToken(url: string): string {
+  if (!DESK_TOKEN) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}token=${encodeURIComponent(DESK_TOKEN)}`;
+}
+
+export const WS_URL = withToken(process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8002/ws");
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(DESK_TOKEN ? { "X-Desk-Token": DESK_TOKEN } : {}),
+      ...(init?.headers ?? {}),
+    },
     cache: "no-store",
   });
   if (!response.ok) {
