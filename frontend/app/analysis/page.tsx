@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { GrokReview } from "@/components/GrokReview";
 import { api } from "@/lib/api";
-import type { Analysis, AnalysisBucket } from "@/lib/types";
+import type { Analysis, AnalysisBucket, GrokBlock } from "@/lib/types";
 import { holdLabel, money, pct, tone } from "@/lib/format";
 
 export default function AnalysisPage() {
@@ -36,10 +37,15 @@ export default function AnalysisPage() {
       <div>
         <h1 className="text-2xl tracking-tight">Analysis</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Last {data.window} completed trades. {data.analyzed} in this window. Notes only fire when the sample
-          actually supports a change.
+          Every completed trade on the book ({data.analyzed}). Rule notes stay conservative; Grok reads the
+          same tape and can suggest knob changes.
         </p>
       </div>
+
+      <GrokReview
+        grok={data.grok}
+        onRefresh={(next: GrokBlock) => setData({ ...data, grok: next })}
+      />
       <div className="grid gap-3 md:grid-cols-4">
         <Box label="Win rate" value={s.win_rate == null ? "—" : pct(s.win_rate, 0)} hint={`${s.wins}W / ${s.losses}L / ${s.flats} flat`} />
         <Box label="Net P&L" value={money(s.pnl)} hint="realized" raw={s.pnl} />
@@ -54,7 +60,7 @@ export default function AnalysisPage() {
         />
       </div>
       <section className="hairline rounded-2xl bg-ink-850/80 p-5">
-        <h2 className="text-base font-medium tracking-tight text-zinc-200">What to change</h2>
+        <h2 className="text-base font-medium tracking-tight text-zinc-200">Rule notes</h2>
         <ul className="mt-3 space-y-2">
           {data.notes.map((note) => (
             <li key={note} className="text-sm leading-relaxed text-zinc-300">

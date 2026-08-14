@@ -272,14 +272,13 @@ async def build_overview(session: AsyncSession) -> dict:
     }
 
 
-async def load_analysis(session: AsyncSession, window: int) -> dict:
+async def load_closed_trades(session: AsyncSession) -> list[dict]:
     rows = (
         await session.execute(
             select(Position)
             .options(selectinload(Position.instrument))
             .where(Position.status != "open")
             .order_by(desc(Position.closed_at))
-            .limit(window)
         )
     ).scalars().all()
     payload = []
@@ -303,7 +302,80 @@ async def load_analysis(session: AsyncSession, window: int) -> dict:
                 "hold_hours": hold_hours(row.opened_at, row.closed_at),
             }
         )
-    return analyze_trades(payload)
+    return payload
+
+
+async def load_analysis(session: AsyncSession, window: int | None = None) -> dict:
+    from app.config import get_settings
+    from app.grok import CACHE_KEY, parse_cache
+
+    trades = await load_closed_trades(session)
+    report = analyze_trades(trades, window=window)
+    settings = await load_settings(session)
+    env = get_settings()
+    report["grok"] = parse_cache(settings.get(CACHE_KEY), available=bool(env.xai_api_key))
+    return report
+
+
+async def grok_desk_payload(session: AsyncSession) -> dict:
+    account = await session.get(Account, 1)
+    assert account is not None
+    equity, mtm = await compute_equity(session, account)
+    trades = await load_closed_trades(session)
+    report = analyze_trades(trades)
+    settings = await load_settings(session)
+    open_rows = (
+        await session.execute(
+            select(Position).options(selectinload(Position.instrument)).where(Position.status == "open")
+        )
+    ).scalars().all()
+    decisions = (
+        await session.execute(
+            select(Decision, Instrument)
+            .outerjoin(Instrument, Decision.instrument_id == Instrument.id)
+            .order_by(desc(Decision.ts))
+            .limit(40)
+        )
+    ).all()
+    knob_settings = {key: settings[key] for key in settings if key != "grok_review"}
+    return {
+        "desk": "market_bot",
+        "mode": "paper",
+        "account": {
+            "cash": float(account.cash),
+            "equity": float(equity),
+            "mtm": float(mtm),
+            "realized_pnl": float(account.realized_pnl),
+            "bankroll_start": float(account.bankroll_start),
+        },
+        "settings": knob_settings,
+        "summary": report["summary"],
+        "by_sleeve": report["by_sleeve"],
+        "by_symbol": report["by_symbol"],
+        "by_exit": report["by_exit"],
+        "completed_trades": trades,
+        "open_positions": [serialize_position(row) for row in open_rows],
+        "recent_decisions": [serialize_decision(row, inst) for row, inst in decisions],
+    }
+
+
+async def run_grok_review(session: AsyncSession) -> dict:
+    from app.config import get_settings
+    from app.grok import CACHE_KEY, complete_review, empty_review, pack_cache, parse_cache
+
+    env = get_settings()
+    if not env.xai_api_key:
+        return empty_review(available=False, error="XAI_API_KEY is not set on the server.")
+    payload = await grok_desk_payload(session)
+    review = await complete_review(env.xai_api_key, payload)
+    packed = pack_cache(review)
+    row = await session.get(Setting, CACHE_KEY)
+    if row is None:
+        session.add(Setting(key=CACHE_KEY, value=packed))
+    else:
+        row.value = packed
+    await session.flush()
+    return parse_cache(packed, available=True)
 
 
 def downsample_points(points: list[EquityPoint], cap: int = 360) -> list[EquityPoint]:

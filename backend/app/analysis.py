@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timezone
 
-ANALYSIS_WINDOW = 20
+ANALYSIS_WINDOW = 2000
 FLAT = 0.50
 
 
@@ -107,15 +107,18 @@ def strategy_notes(rows: list[dict]) -> list[str]:
     return notes
 
 
-def analyze_trades(rows: list[dict]) -> dict:
-    window = rows[:ANALYSIS_WINDOW]
+def analyze_trades(rows: list[dict], *, window: int | None = None) -> dict:
+    ordered = list(rows)
+    if window is not None:
+        ordered = ordered[:window]
     return {
-        "window": ANALYSIS_WINDOW,
-        "analyzed": len(window),
-        "summary": _group_stats(window),
-        "by_sleeve": _breakdown(window, "sleeve"),
-        "by_symbol": _breakdown(window, "symbol"),
-        "by_exit": _breakdown(window, "exit_reason"),
-        "notes": strategy_notes(window),
-        "trades": window,
+        "window": len(ordered),
+        "scope": "all",
+        "analyzed": len(ordered),
+        "summary": _group_stats(ordered),
+        "by_sleeve": _breakdown(ordered, "sleeve"),
+        "by_symbol": _breakdown(ordered, "symbol"),
+        "by_exit": _breakdown(ordered, "exit_reason"),
+        "notes": strategy_notes(ordered),
+        "trades": ordered,
     }

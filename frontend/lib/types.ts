@@ -156,8 +156,35 @@ export type AnalysisTrade = {
   hold_hours: number | null;
 };
 
+export type GrokRecommendation = {
+  key: string;
+  current: string;
+  suggested: string;
+  why: string;
+  confidence: "low" | "medium" | "high" | string;
+};
+
+export type GrokReviewPayload = {
+  headline: string;
+  thesis: string;
+  working: string[];
+  broken: string[];
+  recommendations: GrokRecommendation[];
+  do_not_change: string[];
+  sample_caveat: string;
+};
+
+export type GrokBlock = {
+  available: boolean;
+  model: string;
+  generated_at: string | null;
+  review: GrokReviewPayload | null;
+  error: string | null;
+};
+
 export type Analysis = {
   window: number;
+  scope?: string;
   analyzed: number;
   summary: AnalysisBucket;
   by_sleeve: AnalysisBucket[];
@@ -165,4 +192,5 @@ export type Analysis = {
   by_exit: AnalysisBucket[];
   notes: string[];
   trades: AnalysisTrade[];
+  grok?: GrokBlock;
 };

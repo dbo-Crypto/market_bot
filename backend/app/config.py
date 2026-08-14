@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     cors_origins: str = "http://localhost:3001"
     desk_token: str = ""
+    xai_api_key: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

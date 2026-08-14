@@ -24,6 +24,7 @@ from app.services import (
     latest_sparks,
     load_analysis,
     load_equity_curve,
+    run_grok_review,
     load_instruments,
     load_settings,
     open_positions_by_instrument,
@@ -127,9 +128,19 @@ async def blotter(session: AsyncSession = Depends(get_session)) -> dict:
 
 @app.get("/api/analysis")
 async def analysis(session: AsyncSession = Depends(get_session)) -> dict:
-    from app.analysis import ANALYSIS_WINDOW
+    return await load_analysis(session)
 
-    return await load_analysis(session, ANALYSIS_WINDOW)
+
+@app.post("/api/analysis/grok")
+async def grok_analysis(session: AsyncSession = Depends(get_session)) -> dict:
+    try:
+        result = await run_grok_review(session)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)[:400]) from exc
+    if result.get("error") and not result.get("available"):
+        raise HTTPException(status_code=503, detail=result["error"])
+    await session.commit()
+    return result
 
 
 @app.get("/api/equity")
@@ -187,8 +198,15 @@ class SettingsPatch(BaseModel):
     snap_symbols: str | None = None
     pulse_symbols: str | None = None
     slow_sleeve_fraction: float | None = Field(default=None, ge=0.2, le=0.95)
+    slow_lookback: int | None = Field(default=None, ge=60, le=400)
+    slow_skip: int | None = Field(default=None, ge=5, le=60)
+    slow_sma: int | None = Field(default=None, ge=50, le=400)
     snap_sleeve_fraction: float | None = Field(default=None, ge=0.02, le=0.2)
+    snap_rsi: int | None = Field(default=None, ge=2, le=14)
     snap_rsi_buy: float | None = Field(default=None, ge=2, le=25)
+    snap_sma_filter: int | None = Field(default=None, ge=50, le=400)
+    snap_sma_exit: int | None = Field(default=None, ge=2, le=20)
+    snap_atr: int | None = Field(default=None, ge=5, le=40)
     snap_max_days: int | None = Field(default=None, ge=1, le=10)
     snap_stop_atr: float | None = Field(default=None, ge=1.0, le=5.0)
     snap_risk_fraction: float | None = Field(default=None, ge=0.002, le=0.02)
@@ -200,6 +218,7 @@ class SettingsPatch(BaseModel):
     pulse_stop_atr: float | None = Field(default=None, ge=1.0, le=5.0)
     pulse_trail_atr: float | None = Field(default=None, ge=1.5, le=6.0)
     daily_loss_halt: float | None = Field(default=None, ge=0.01, le=0.5)
+    min_trade_notional: float | None = Field(default=None, ge=1, le=200)
     poll_interval_seconds: int | None = Field(default=None, ge=15)
     etf_refresh_seconds: int | None = Field(default=None, ge=300)
     crypto_bar_seconds: int | None = Field(default=None, ge=15)

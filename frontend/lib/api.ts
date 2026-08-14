@@ -1,4 +1,4 @@
-import type { Analysis, Blotter, Overview } from "./types";
+import type { Analysis, Blotter, GrokBlock, Overview } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8002";
 export const DESK_TOKEN = process.env.NEXT_PUBLIC_DESK_TOKEN ?? "";
@@ -22,7 +22,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const body = (await response.json()) as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* keep status text */
+    }
+    throw new Error(detail);
   }
   return response.json() as Promise<T>;
 }
@@ -35,6 +42,7 @@ export const api = {
     ),
   blotter: () => request<Blotter>("/api/blotter"),
   analysis: () => request<Analysis>("/api/analysis"),
+  grokAnalysis: () => request<GrokBlock>("/api/analysis/grok", { method: "POST" }),
   equity: (window: "today" | "7d" | "30d" | "all") =>
     request<{ window: string; points: Overview["equity"] }>(`/api/equity?window=${window}`),
   settings: () => request<Record<string, string>>("/api/settings"),
