@@ -4,11 +4,12 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +23,7 @@ from app.models import Account, Decision, EquityPoint, Fill, Instrument, Positio
 from app.services import (
     build_overview,
     latest_sparks,
+    grok_desk_payload,
     load_analysis,
     load_equity_curve,
     run_grok_review,
@@ -129,6 +131,19 @@ async def blotter(session: AsyncSession = Depends(get_session)) -> dict:
 @app.get("/api/analysis")
 async def analysis(session: AsyncSession = Depends(get_session)) -> dict:
     return await load_analysis(session)
+
+
+@app.get("/api/analysis/briefing")
+async def analysis_briefing(session: AsyncSession = Depends(get_session)) -> PlainTextResponse:
+    from app.grok import format_briefing
+
+    payload = await grok_desk_payload(session)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    return PlainTextResponse(
+        format_briefing(payload),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="market-desk-briefing-{stamp}.txt"'},
+    )
 
 
 @app.post("/api/analysis/grok")

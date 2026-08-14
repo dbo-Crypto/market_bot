@@ -43,6 +43,27 @@ export const api = {
   blotter: () => request<Blotter>("/api/blotter"),
   analysis: () => request<Analysis>("/api/analysis"),
   grokAnalysis: () => request<GrokBlock>("/api/analysis/grok", { method: "POST" }),
+  downloadBriefing: async () => {
+    const response = await fetch(`${API_URL}/api/analysis/briefing`, {
+      headers: DESK_TOKEN ? { "X-Desk-Token": DESK_TOKEN } : {},
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    const header = response.headers.get("content-disposition") || "";
+    const match = /filename="?([^"]+)"?/.exec(header);
+    const name = match?.[1] || "desk-briefing.txt";
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
   equity: (window: "today" | "7d" | "30d" | "all") =>
     request<{ window: string; points: Overview["equity"] }>(`/api/equity?window=${window}`),
   settings: () => request<Record<string, string>>("/api/settings"),

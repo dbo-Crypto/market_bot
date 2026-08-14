@@ -18,6 +18,7 @@ export function GrokReview({
   onRefresh: (next: GrokBlock) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
   const review = grok?.review;
@@ -32,6 +33,18 @@ export function GrokReview({
       setError(err instanceof Error ? err.message : "Grok review failed");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function download() {
+    setDownloading(true);
+    setError(null);
+    try {
+      await api.downloadBriefing();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "download failed");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -55,8 +68,8 @@ export function GrokReview({
         <div>
           <h2 className="text-base font-medium tracking-tight text-zinc-200">Grok desk review</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Reads every completed trade, open names, knobs, and recent decisions. Suggests specific setting
-            changes — does not trade.
+            Reads every completed trade, open names, knobs, and recent decisions. Download the briefing and
+            upload it in Grok chat, or ask Grok here once an API key is set.
           </p>
           {grok?.generated_at ? (
             <p className="mt-1 text-[11px] uppercase tracking-wider text-zinc-600">
@@ -64,14 +77,24 @@ export function GrokReview({
             </p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={() => void run()}
-          disabled={busy || grok?.available === false}
-          className="rounded-full border border-white/10 px-4 py-2 text-sm text-zinc-200 hover:border-white/25 disabled:opacity-40"
-        >
-          {busy ? "Reading the book…" : review ? "Run again" : "Ask Grok"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void download()}
+            disabled={downloading}
+            className="rounded-full border border-white/10 px-4 py-2 text-sm text-zinc-200 hover:border-white/25 disabled:opacity-40"
+          >
+            {downloading ? "Preparing…" : "Download for Grok chat"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void run()}
+            disabled={busy || grok?.available === false}
+            className="rounded-full border border-white/10 px-4 py-2 text-sm text-zinc-200 hover:border-white/25 disabled:opacity-40"
+          >
+            {busy ? "Reading the book…" : review ? "Run again" : "Ask Grok"}
+          </button>
+        </div>
       </div>
 
       {grok?.available === false ? (

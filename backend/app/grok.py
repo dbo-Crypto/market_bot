@@ -172,3 +172,118 @@ async def complete_review(api_key: str, payload: dict) -> dict:
             recs.append(item)
     review["recommendations"] = recs
     return review
+
+
+def _money(value: object) -> str:
+    if value is None:
+        return "—"
+    return f"${float(value):,.2f}"
+
+
+def _num(value: object, digits: int = 3) -> str:
+    if value is None:
+        return "—"
+    return f"{float(value):.{digits}f}"
+
+
+def _ts(value: object) -> str:
+    if not value:
+        return "—"
+    return str(value).replace("T", " ")[:19] + " UTC"
+
+
+def format_briefing(payload: dict) -> str:
+    """Plain-text book a human can upload to Grok chat."""
+    account = payload.get("account") or {}
+    settings = payload.get("settings") or {}
+    summary = payload.get("summary") or {}
+    trades = payload.get("completed_trades") or []
+    opens = payload.get("open_positions") or []
+    decisions = payload.get("recent_decisions") or []
+    lines = [
+        "PAPER DESK BRIEFING — Market Bot",
+        f"Snapshot: {_ts(datetime.now(timezone.utc).isoformat())}",
+        "Mode: paper only. Virtual bankroll. No live orders.",
+        "",
+        "HOW TO USE THIS FILE",
+        "You are Grok reviewing a paper multi-sleeve desk:",
+        "- Slow (~80%): monthly dual momentum on ETFs.",
+        "- Snap (~8%): short-hold QQQ RSI washout.",
+        "- Pulse (~12%): crypto 4h Donchian breakout with ATR stop/trail.",
+        "Read every trade, open position, knob, and decision. Then tell me:",
+        "1) What is working and what is leaking money.",
+        "2) Specific setting changes (key, current → suggested, why, confidence low/medium/high).",
+        "3) What NOT to change given the sample size.",
+        "Do not invent trades. Respect sleeve jobs — do not retune Slow because Pulse is quiet.",
+        "If fewer than 8 completed trades, confidence must be low.",
+        "This is paper. Do not suggest wallets, live brokers, or new asset classes.",
+        "Only recommend these keys: " + ", ".join(ALLOWED_KEYS) + ".",
+        "",
+        "ACCOUNT",
+        f"- Bankroll start: {_money(account.get('bankroll_start'))}",
+        f"- Equity:         {_money(account.get('equity'))}",
+        f"- Cash:           {_money(account.get('cash'))}",
+        f"- Open MTM:       {_money(account.get('mtm'))}",
+        f"- Realized P&L:   {_money(account.get('realized_pnl'))}",
+        "",
+        "KNOBS",
+    ]
+    for key in ALLOWED_KEYS:
+        if key in settings:
+            lines.append(f"  {key}={settings[key]}")
+    lines += [
+        "",
+        "COMPLETED BOOK",
+        (
+            f"  N={summary.get('trades', 0)}  {summary.get('wins', 0)}W/"
+            f"{summary.get('losses', 0)}L  win_rate={summary.get('win_rate')}  "
+            f"net={_money(summary.get('pnl'))}  expectancy={_money(summary.get('expectancy'))}"
+        ),
+        "  TRADE TAPE",
+    ]
+    if not trades:
+        lines.append("    (none yet)")
+    for row in trades:
+        lines.append(
+            "    "
+            f"#{row.get('id')} {row.get('result')} {row.get('sleeve')} {row.get('symbol')}  "
+            f"qty={row.get('qty')} avg={_num(row.get('avg_price'))} "
+            f"pnl={_money(row.get('realized_pnl'))} exit={row.get('exit_reason')} "
+            f"hold_h={_num(row.get('hold_hours'), 1)}  {_ts(row.get('opened_at'))} → {_ts(row.get('closed_at'))}"
+        )
+    for name, key in (("BY SLEEVE", "by_sleeve"), ("BY SYMBOL", "by_symbol"), ("BY EXIT", "by_exit")):
+        rows = payload.get(key) or []
+        if not rows:
+            continue
+        lines.append(f"  {name}")
+        for row in rows:
+            lines.append(
+                f"    {row.get('key')}  n={row.get('trades')}  "
+                f"{row.get('wins')}W/{row.get('losses')}L  pnl={_money(row.get('pnl'))}"
+            )
+    lines += ["", "OPEN POSITIONS"]
+    if not opens:
+        lines.append("  (none)")
+    for row in opens:
+        lines.append(
+            f"  {row.get('sleeve')} {row.get('symbol')}  qty={row.get('qty')} "
+            f"avg={_num(row.get('avg_price'))} mark={_num(row.get('mark'))} "
+            f"mtm={_money(row.get('market_value'))} latent={_money(row.get('latent_pnl'))}  "
+            f"opened {_ts(row.get('opened_at'))}"
+        )
+    lines += ["", "RECENT DECISIONS"]
+    if not decisions:
+        lines.append("  (none)")
+    for row in decisions[:40]:
+        lines.append(
+            f"  {_ts(row.get('ts'))}  {row.get('action')}  {row.get('sleeve')} {row.get('symbol')}  "
+            f"qty={row.get('qty')} score={row.get('score')}  {row.get('reason')}"
+        )
+    lines += [
+        "",
+        "OUTPUT FORMAT",
+        "Headline, thesis, working, broken, recommendations (key | current → suggested | why | confidence),",
+        "do_not_change, sample_caveat.",
+        "",
+    ]
+    return "\n".join(lines)
